@@ -1,0 +1,94 @@
+# OpenClaw Gateway Docker Compose - 生产环境配置
+#
+# 使用方法:
+#   1. 首先创建 secrets 目录和 token 文件
+#      mkdir -p build/runtime/secrets
+#      openssl rand -hex 32 > build/runtime/secrets/gateway_token
+#      chmod 600 build/runtime/secrets/gateway_token
+#   2. 确保生产必需配置文件存在
+#      - config/openclaw.json (主配置文件)
+#      - config/providers/ (提供商配置目录)
+#      - build/runtime/certs/ (SSL证书目录，如使用HTTPS)
+#   3. 启动服务
+#      docker compose -f docker-compose.yml -f docker-compose.prod.yml --env-file ../build/docker/.env up -d
+#
+# 注意: 此文件针对生产环境优化，特点:
+#       1. 仅挂载生产必需的配置文件到 /tmp/openclaw_config
+#       2. 使用 Docker Secrets 安全存储敏感信息
+#       3. 通过 entrypoint 将配置复制到可写卷后启动
+#       4. 需要 Docker Compose V2+ 或 Docker Swarm 模式
+
+services:
+  openclaw-gateway:
+    # 生产环境使用生产模式镜像（默认，无调试工具）
+    build:
+      args:
+        - BUILD_MODE=production
+    # 加载环境变量文件
+    env_file:
+      - ../build/docker/.env
+    environment:
+      # Gateway Token (from Docker Secrets file)
+      # 注意: Token 从 /run/secrets/gateway_token 读取，不在环境变量中暴露
+      - OPENCLAW_GATEWAY_TOKEN_FILE=/run/secrets/gateway_token
+    # 生产环境卷挂载配置 - 安全与功能平衡
+    volumes:
+      # 持久化数据目录 - 允许写入以支持 canvas, cron 等服务
+      - openclaw-data:/home/node/.openclaw
+      # 运行时目录 - build/runtime 持久化
+      - openclaw-runtime:/home/node/.openclaw_runtime
+      # 生产必需配置: 仅挂载 openclaw.json 到临时目录
+      # 说明: /tmp/openclaw_config 仅用于启动时复制配置，不保留敏感信息
+      - ../config/openclaw.json:/tmp/openclaw_config/openclaw.json:ro
+      # 提供商配置目录 - 开发环境需要，生产环境也需要
+      - ../config/providers:/tmp/openclaw_config/providers:ro
+      # 环境变量配置目录 - 开发环境需要，生产环境也需要
+      - ../build/runtime/env:/tmp/openclaw_config/env:ro
+      # SSL/TLS 证书目录 (生产环境必需，如果使用 HTTPS)
+      - ../build/runtime/certs:/tmp/openclaw_config/certs:ro
+      # 运行时 secrets (从 build/runtime/secrets 挂载)
+      - ../build/runtime/secrets:/tmp/openclaw_runtime_secrets:ro
+      # 嵌入式代理配置 - 使用命名卷支持运行时写入
+      # 注意: 初始配置通过 entrypoint 复制，运行时允许更新 models.json
+      - openclaw-agent-config:/home/node/.openclaw/agents/main/agent
+      # 输入文件目录 (只读)
+      - ../build/docker/input:/home/node/openclaw_input:ro
+      # 临时文件目录
+      - openclaw-temp:/home/node/.openclaw_temp
+    # 生产环境入口点: 复制配置、注入token、启动服务
+    # 说明: 配置先复制到可写的数据卷，然后注入 token，最后启动服务
+    entrypoint: ["/bin/sh", "-c", "mkdir -p /home/node/.openclaw/certs /home/node/.openclaw/agents/main/agent /home/node/.openclaw/secrets /home/node/.openclaw/env /home/node/.openclaw/providers /home/node/.openclaw_runtime && cp -f /tmp/openclaw_config/openclaw.json /home/node/.openclaw/openclaw.json && cp -rf /tmp/openclaw_config/providers/* /home/node/.openclaw/providers/ 2>/dev/null || true && cp -rf /tmp/openclaw_config/env/* /home/node/.openclaw/env/ 2>/dev/null || true && cp -rf /tmp/openclaw_config/certs/* /home/node/.openclaw/certs/ 2>/dev/null || true && if [ -d /tmp/openclaw_runtime_secrets ]; then cp -rf /tmp/openclaw_runtime_secrets/* /home/node/.openclaw/secrets/ 2>/dev/null || true; fi && if [ -d /tmp/openclaw_config/agents/main/agent ]; then cp -rf /tmp/openclaw_config/agents/main/agent/* /home/node/.openclaw/agents/main/agent/ 2>/dev/null || true; fi && if [ -f /home/node/.openclaw_runtime/agents/main/agent/models.json ]; then cp -f /home/node/.openclaw_runtime/agents/main/agent/models.json /home/node/.openclaw/agents/main/agent/ 2>/dev/null || true; fi && if [ -f /run/secrets/gateway_token ]; then TOKEN=$$(cat /run/secrets/gateway_token 2>/dev/null | tr -d '\\\\n\\\\r') && if [ -n \"$$TOKEN\" ]; then node -e \"const fs=require('fs'); try { const token='$$TOKEN'; const cfg=JSON.parse(fs.readFileSync('/home/node/.openclaw/openclaw.json')); cfg.gateway=cfg.gateway||{}; cfg.gateway.auth={mode:'token',token:token}; fs.writeFileSync('/home/node/.openclaw/openclaw.json', JSON.stringify(cfg,null,2)); } catch(e) { console.error('Token injection failed:', e.message); process.exit(1); }\"; fi; fi && cp -f /home/node/.openclaw/openclaw.json /home/node/.openclaw_runtime/ 2>/dev/null || true && cp -rf /home/node/.openclaw/agents/main/agent/* /home/node/.openclaw_runtime/agents/main/agent/ 2>/dev/null || true && exec dumb-init openclaw gateway --port 18789"]
+    # 生产环境: 禁用只读根文件系统（因为需要运行时修改配置注入token）
+    # 注意: 如需增强安全性，可考虑将 token 注入移到构建阶段
+    read_only: false
+    # 使用 tmpfs 存储临时文件
+    tmpfs:
+      - /tmp:size=100m,mode=1777
+    # 丢弃所有 Linux 能力，最小化攻击面
+    cap_drop:
+      - ALL
+    # Docker Secrets 配置 (生产环境推荐)
+    # 注意: 需要 Docker Compose V2+ 或 Docker Swarm 模式
+    secrets:
+      - gateway_token
+
+# Docker Secrets 定义
+# 注意: 在 Docker Swarm 模式下,secrets 会自动加密存储
+# 在 Docker Compose V2 中,secrets 文件会被挂载到容器内
+secrets:
+  gateway_token:
+    file: ../build/runtime/secrets/gateway_token
+
+volumes:
+  openclaw-data:
+    name: openclaw-data
+    driver: local
+  openclaw-runtime:
+    name: openclaw-runtime
+    driver: local
+  openclaw-agent-config:
+    name: openclaw-agent-config
+    driver: local
+  openclaw-temp:
+    name: openclaw-temp
+    driver: local

@@ -1,0 +1,70 @@
+# ==============================================================================
+# DeepSeek Provider Configuration
+# ==============================================================================
+# OpenClaw Custom Provider Configuration
+# 文档: https://docs.openclaw.ai/gateway/configuration-reference#custom-providers
+# ==============================================================================
+
+# 模型提供商配置 (OpenClaw 自定义提供商格式)
+models:
+  mode: "merge"
+  providers:
+    deepseek:
+      # API 端点 (OpenAI 兼容格式)
+      baseUrl: "https://api.deepseek.com/v1"
+      # API 密钥 (从环境变量读取)
+      apiKey: "${DEEPSEEK_API_KEY}"
+      # API 类型: openai-completions | openai-responses | anthropic-messages
+      api: "openai-completions"
+      # 可用模型列表
+      models:
+        - id: "deepseek-chat"
+          name: "DeepSeek Chat"
+          contextWindow: 64000
+          maxTokens: 8192
+          reasoning: false
+          input: ["text"]
+          cost:
+            input: 0.0
+            output: 0.0
+            cacheRead: 0.0
+            cacheWrite: 0.0
+        - id: "deepseek-coder"
+          name: "DeepSeek Coder"
+          contextWindow: 64000
+          maxTokens: 8192
+          reasoning: false
+          input: ["text"]
+          cost:
+            input: 0.0
+            output: 0.0
+            cacheRead: 0.0
+            cacheWrite: 0.0
+        - id: "deepseek-reasoner"
+          name: "DeepSeek Reasoner (R1)"
+          contextWindow: 64000
+          maxTokens: 8192
+          reasoning: true
+          input: ["text"]
+          cost:
+            input: 0.0
+            output: 0.0
+            cacheRead: 0.0
+            cacheWrite: 0.0
+
+# 代理默认配置
+agents:
+  defaults:
+    # 主模型
+    model:
+      primary: "deepseek/deepseek-chat"
+      fallbacks:
+        - "deepseek/deepseek-coder"
+    # 模型别名和元数据
+    models:
+      "deepseek/deepseek-chat":
+        alias: "DeepSeek Chat"
+      "deepseek/deepseek-coder":
+        alias: "DeepSeek Coder"
+      "deepseek/deepseek-reasoner":
+        alias: "DeepSeek R1"

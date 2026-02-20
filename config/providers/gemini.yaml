@@ -1,0 +1,60 @@
+# ==============================================================================
+# Gemini (Google) Provider Configuration
+# ==============================================================================
+# OpenClaw 模型配置文件
+# 文档: https://docs.openclaw.ai/providers/gemini
+# ==============================================================================
+
+# 模型提供商类型
+provider: google
+
+# 显示名称
+label: "Gemini (Google)"
+
+# API 密钥来源
+apiKey: ${GEMINI_API_KEY}
+
+# API 端点
+apiBaseUrl: https://generativelanguage.googleapis.com
+
+# 使用的模型
+model: gemini-2.0-flash
+
+# 可用模型列表 (用于回退)
+models:
+  - gemini-2.0-flash      # 推荐 (快速)
+  - gemini-1.5-pro        # 高质量
+  - gemini-1.5-flash     # 平衡
+
+# 最大 token 数量
+maxTokens: 8192
+
+# 请求超时 (毫秒)
+timeout: 120000
+
+# 最大重试次数
+maxRetries: 3
+
+# 温度参数
+temperature: 0.7
+
+# 系统提示词
+systemPrompt: |
+  You are Gemini, an AI assistant built by Google.
+  You are helpful, harmless, and honest.
+
+# 是否启用
+enabled: false
+
+# 是否为默认模型
+default: false
+
+# 代理设置 (可选)
+# proxy: ${GEMINI_PROXY}
+
+# 安全设置
+safetySettings:
+  harassment: BLOCK_MEDIUM_AND_ABOVE
+  hateSpeech: BLOCK_MEDIUM_AND_ABOVE
+  sexuallyExplicit: BLOCK_MEDIUM_AND_ABOVE
+  dangerousContent: BLOCK_MEDIUM_AND_ABOVE

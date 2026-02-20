@@ -1,0 +1,56 @@
+# ==============================================================================
+# Claude (Anthropic) Provider Configuration
+# ==============================================================================
+# OpenClaw 模型配置文件
+# 文档: https://docs.openclaw.ai/providers/anthropic
+# ==============================================================================
+
+# 模型提供商类型
+provider: anthropic
+
+# 显示名称
+label: "Claude (Anthropic)"
+
+# API 密钥来源 (从环境变量或密钥文件读取)
+apiKey: ${ANTHROPIC_API_KEY}
+
+# API 端点 (通常不需要修改)
+apiBaseUrl: https://api.anthropic.com
+
+# 使用的模型
+model: claude-sonnet-4-20250514
+
+# 可用模型列表 (用于回退)
+models:
+  - claude-opus-4-5-20251114    # 最高质量
+  - claude-sonnet-4-20250514    # 推荐 (平衡)
+  - claude-3-5-sonnet-20241022  # 稳定
+
+# 最大 token 数量
+maxTokens: 8192
+
+# 请求超时 (毫秒)
+timeout: 120000
+
+# 最大重试次数
+maxRetries: 3
+
+# 温度参数
+temperature: 0.7
+
+# 系统提示词
+systemPrompt: |
+  You are Claude, an AI assistant built by Anthropic.
+  You are helpful, harmless, and honest.
+
+# 是否启用
+enabled: true
+
+# 是否为默认模型
+default: true
+
+# 代理设置 (可选)
+# proxy: ${ANTHROPIC_PROXY}
+
+# 密钥文件路径 (可选，用于加密存储)
+# keyFile: ~/.openclaw/secrets/anthropic.key

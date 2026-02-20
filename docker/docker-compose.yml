@@ -1,0 +1,126 @@
+# OpenClaw Gateway Docker Compose - 开发环境配置
+#
+# 使用方法:
+#   开发环境: docker compose up -d
+#   生产环境: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# 注意: 此配置文件针对开发环境优化，使用直接卷挂载便于实时修改
+#       生产环境请配合 docker-compose.prod.yml 使用，启用 Docker Secrets 和最小化挂载
+
+services:
+  openclaw-gateway:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      # 开发模式构建参数（包含额外调试工具）
+      args:
+        - BUILD_MODE=development
+    container_name: openclaw-gateway
+    restart: unless-stopped
+    # 使用 host 网络模式直接共享主机网络 (避免 Docker 代理问题)
+    network_mode: "host"
+    environment:
+      NODE_ENV: production
+      # Gateway 配置 (使用环境变量，不在配置文件中暴露)
+      # 优先使用 Docker Secrets,回退到环境变量
+      OPENCLAW_GATEWAY_TOKEN: ${OPENCLAW_GATEWAY_TOKEN}
+      # AI 统一配置
+      AI_PROVIDER: ${AI_PROVIDER}
+      AI_MODEL: ${AI_MODEL}
+      AI_API_BASE_URL: ${AI_API_BASE_URL}
+      AI_PROXY: ${AI_PROXY:-}
+      AI_TIMEOUT: ${AI_TIMEOUT:-120000}
+      AI_MAX_RETRIES: ${AI_MAX_RETRIES:-3}
+      # 多提供商 API Keys (运行时切换使用, 可选提供商可留空)
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      # 代理配置
+      HTTP_PROXY: ${HTTP_PROXY:-}
+      HTTPS_PROXY: ${HTTPS_PROXY:-}
+      NO_PROXY: ${NO_PROXY:-localhost,127.0.0.1}
+    # 开发环境: 允许未配置模式运行，便于快速启动测试
+    command: ["openclaw", "gateway", "--port", "18789", "--allow-unconfigured"]
+    # 开发环境卷挂载配置 - 使用 Copy + Mount 模式
+    # 注意：使用 build/reference/config/ 而非原始 config/，避免修改仓库文件
+    # 注意: 生产环境使用 docker-compose.prod.yml，这些挂载会被覆盖
+    volumes:
+      # 提供商配置目录 - 从 build/reference/config/providers 挂载（只读）
+      - ../build/reference/config/providers:/home/node/.openclaw/providers:ro
+      # 环境变量配置 - 可读写（可能需要动态修改）
+      - ../build/runtime/env:/home/node/.openclaw/env:rw
+      # 运行时目录 - build/runtime 持久化运行时数据（可读写）
+      - ../build/runtime:/home/node/.openclaw_runtime:rw
+      # 证书目录 (HTTPS 需要，可读写)
+      - ../build/runtime/certs:/home/node/.openclaw/certs:rw
+      # Agent 配置目录 - 运行时生成的数据（可读写）
+      - ../build/runtime/agents/main:/home/node/.openclaw/agents/main:rw
+      # 输入文件目录（可读写）
+      - ../build/docker/input:/home/node/openclaw_input:rw
+      # 工作空间 - 开发环境使用命名卷，避免权限问题
+      - openclaw-workspace:/home/node/.openclaw/workspace
+      # 日志目录 - 开发环境持久化日志
+      - openclaw-logs:/home/node/.openclaw/logs
+      # 临时文件目录（可读写）
+      - ../build/temp:/home/node/.openclaw_temp:rw
+    # 注意: host 模式下不能使用 healthcheck
+    # healthcheck:
+    #   test: ["CMD", "curl", "-f", "http://localhost:18789/health"]
+    #   interval: 30s
+    #   timeout: 10s
+    #   retries: 3
+    #   start_period: 60s
+    # 注意: host 模式下不能使用 networks
+    # networks:
+    #   - openclaw-network
+    # 开发环境安全选项 - 适当放宽以便调试
+    security_opt:
+      - no-new-privileges:true
+    # 开发环境: 禁用只读根文件系统，便于动态修改
+    read_only: false
+    # 使用 tmpfs 存储临时文件
+    tmpfs:
+      - /tmp:size=100m,mode=1777
+    # 开发环境: 保留必要能力，便于调试工具运行
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETGID
+      - SETUID
+    # 允许的时间优雅停止
+    stop_grace_period: 30s
+    # 资源限制
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+          cpus: "2.0"
+        reservations:
+          memory: 2G
+          cpus: "0.5"
+
+  # 可选: Ollama 服务 (如果需要在 Docker 内运行)
+  # ollama:
+  #   image: ollama/ollama:latest
+  #   container_name: openclaw-ollama
+  #   restart: unless-stopped
+  #   ports:
+  #     - "11434:11434"
+  #   volumes:
+  #     - ollama-data:/root/.ollama
+  #   networks:
+  #     - openclaw-network
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         gpu-all: "1"
+  #         memory: 8G
+
+volumes:
+  openclaw-workspace:
+    name: openclaw-workspace
+  openclaw-logs:
+    name: openclaw-logs
+  # ollama-data:
+  #   name: ollama-data
