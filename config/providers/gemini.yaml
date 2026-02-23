@@ -1,60 +1,57 @@
 # ==============================================================================
-# Gemini (Google) Provider Configuration
+# Google Gemini Provider Configuration
 # ==============================================================================
-# OpenClaw 模型配置文件
-# 文档: https://docs.openclaw.ai/providers/gemini
+# OpenClaw Custom Provider Configuration
+# 文档: https://docs.openclaw.ai/gateway/configuration-reference#custom-providers
 # ==============================================================================
 
-# 模型提供商类型
-provider: google
-
-# 显示名称
-label: "Gemini (Google)"
-
-# API 密钥来源
-apiKey: ${GEMINI_API_KEY}
-
-# API 端点
-apiBaseUrl: https://generativelanguage.googleapis.com
-
-# 使用的模型
-model: gemini-2.0-flash
-
-# 可用模型列表 (用于回退)
+# 模型提供商配置 (OpenClaw 自定义提供商格式)
 models:
-  - gemini-2.0-flash      # 推荐 (快速)
-  - gemini-1.5-pro        # 高质量
-  - gemini-1.5-flash     # 平衡
+  mode: "merge"
+  providers:
+    google:
+      # API 端点 (Google Gemini OpenAI 兼容格式)
+      baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai"
+      # API 密钥 (从环境变量读取)
+      apiKey: "${GEMINI_API_KEY}"
+      # API 类型: openai-completions | openai-responses | anthropic-messages
+      api: "openai-completions"
+      # 可用模型列表
+      models:
+        - id: "gemini-flash-latest"
+          name: "Gemini Flash Latest"
+          contextWindow: 1000000
+          maxTokens: 8192
+          reasoning: false
+          input: ["text", "image"]
+          cost:
+            input: 0.0
+            output: 0.0
+            cacheRead: 0.0
+            cacheWrite: 0.0
+        - id: "gemini-pro-latest"
+          name: "Gemini Pro Latest"
+          contextWindow: 2000000
+          maxTokens: 8192
+          reasoning: false
+          input: ["text", "image"]
+          cost:
+            input: 0.0
+            output: 0.0
+            cacheRead: 0.0
+            cacheWrite: 0.0
 
-# 最大 token 数量
-maxTokens: 8192
-
-# 请求超时 (毫秒)
-timeout: 120000
-
-# 最大重试次数
-maxRetries: 3
-
-# 温度参数
-temperature: 0.7
-
-# 系统提示词
-systemPrompt: |
-  You are Gemini, an AI assistant built by Google.
-  You are helpful, harmless, and honest.
-
-# 是否启用
-enabled: false
-
-# 是否为默认模型
-default: false
-
-# 代理设置 (可选)
-# proxy: ${GEMINI_PROXY}
-
-# 安全设置
-safetySettings:
-  harassment: BLOCK_MEDIUM_AND_ABOVE
-  hateSpeech: BLOCK_MEDIUM_AND_ABOVE
-  sexuallyExplicit: BLOCK_MEDIUM_AND_ABOVE
-  dangerousContent: BLOCK_MEDIUM_AND_ABOVE
+# 代理默认配置
+agents:
+  defaults:
+    # 主模型
+    model:
+      primary: "google/gemini-flash-latest"
+      fallbacks:
+        - "google/gemini-pro-latest"
+    # 模型别名和元数据
+    models:
+      "google/gemini-flash-latest":
+        alias: "Gemini Flash"
+      "google/gemini-pro-latest":
+        alias: "Gemini Pro"

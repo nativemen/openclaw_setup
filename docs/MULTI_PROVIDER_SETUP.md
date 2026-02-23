@@ -47,11 +47,11 @@ OPENAI_API_KEY=sk-openai-xxx
       },
       "anthropic": {
         "apiKey": "${ANTHROPIC_API_KEY}",
-        "models": ["claude-opus-4-6", "claude-sonnet-4-5"]
+        "models": ["claude-opus-4-20250514", "claude-sonnet-4-20250514"]
       },
       "google": {
         "apiKey": "${GEMINI_API_KEY}",
-        "models": ["gemini-2.0-flash", "gemini-2.0-pro"]
+        "models": ["gemini-flash-latest", "gemini-pro-latest"]
       }
     }
   },
@@ -61,8 +61,8 @@ OPENAI_API_KEY=sk-openai-xxx
         "primary": "deepseek/deepseek-chat",
         "fallbacks": [
           "deepseek/deepseek-coder",
-          "anthropic/claude-sonnet-4-5",
-          "google/gemini-2.0-flash"
+          "anthropic/claude-sonnet-4-20250514",
+          "google/gemini-flash-latest"
         ]
       }
     }
@@ -87,16 +87,16 @@ OPENAI_API_KEY=sk-openai-xxx
 ```
 /model list                    # 列出所有可用模型
 /model 2                       # 选择第2个模型
-/model anthropic/claude-sonnet-4-5   # 切换到 Claude
+/model anthropic/claude-sonnet-4-20250514    # 切换到 Claude
 /model deepseek/deepseek-chat         # 切换回 DeepSeek
-/model google/gemini-2.0-flash        # 切换到 Gemini
+/model google/gemini-flash-latest        # 切换到 Gemini
 ```
 
 #### 方法 2: CLI 命令
 ```bash
-openclaw models set anthropic/claude-opus-4-6
+openclaw models set anthropic/claude-sonnet-4-20250514
 openclaw models set deepseek/deepseek-chat
-openclaw models set google/gemini-2.0-flash
+openclaw models set google/gemini-flash-latest
 ```
 
 #### 方法 3: 自动故障转移

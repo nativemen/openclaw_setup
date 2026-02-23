@@ -35,6 +35,9 @@ RUN apt-get update && \
         ca-certificates \
         dumb-init \
         git \
+        python3 \
+        python3-pip \
+        build-essential \
         $([ "$BUILD_MODE" = "development" ] && echo "vim nano procps htop net-tools") \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean

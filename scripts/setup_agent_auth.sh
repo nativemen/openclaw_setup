@@ -29,17 +29,31 @@ PROVIDER_MAP[ollama]="ollama"
 
 # 提供商显示名称
 declare -A PROVIDER_LABELS
-PROVIDER_LABELS[claude]="Claude (Anthropic)"
 PROVIDER_LABELS[deepseek]="DeepSeek"
 PROVIDER_LABELS[gemini]="Gemini (Google)"
+PROVIDER_LABELS[claude]="Claude (Anthropic)"
 PROVIDER_LABELS[ollama]="Ollama (Local)"
 
 # 提供商 API Key 环境变量名映射
 declare -A PROVIDER_API_KEY_NAMES
-PROVIDER_API_KEY_NAMES[claude]="ANTHROPIC_API_KEY"
 PROVIDER_API_KEY_NAMES[deepseek]="DEEPSEEK_API_KEY"
 PROVIDER_API_KEY_NAMES[gemini]="GEMINI_API_KEY"
+PROVIDER_API_KEY_NAMES[claude]="ANTHROPIC_API_KEY"
 PROVIDER_API_KEY_NAMES[ollama]="OLLAMA_API_KEY"
+
+# 提供商 API Base URL 映射
+declare -A PROVIDER_API_BASE_URLS
+PROVIDER_API_BASE_URLS[deepseek]="https://api.deepseek.com"
+PROVIDER_API_BASE_URLS[gemini]="https://generativelanguage.googleapis.com/v1beta/openai"
+PROVIDER_API_BASE_URLS[claude]="https://api.anthropic.com"
+PROVIDER_API_BASE_URLS[ollama]="http://localhost:11434"
+
+# 提供商默认模型映射
+declare -A PROVIDER_DEFAULT_MODELS
+PROVIDER_DEFAULT_MODELS[deepseek]="deepseek-chat"
+PROVIDER_DEFAULT_MODELS[gemini]="gemini-flash-latest"
+PROVIDER_DEFAULT_MODELS[claude]="claude-sonnet-4-20250514"
+PROVIDER_DEFAULT_MODELS[ollama]="llama3.1:8b"
 
 # 创建必要的目录结构
 create_directories() {
@@ -95,32 +109,30 @@ load_env_config() {
         return 1
     fi
 
-    # 读取 AI_PROVIDER
+    # 读取当前默认 AI_PROVIDER (用于确定主模型)
     AI_PROVIDER=$(grep "^AI_PROVIDER=" "$source_file" 2>/dev/null | cut -d'=' -f2 | tr -d '"' | tr -d "'" | tr -d '[:space:]' || echo "")
 
     # 清理提供商名称，防止重复
     AI_PROVIDER=$(clean_provider_name "$AI_PROVIDER")
 
-    # 读取 provider 专用的 API Key
-    local provider_key_name=""
-    if [[ -n "$AI_PROVIDER" && -v "PROVIDER_API_KEY_NAMES[$AI_PROVIDER]" ]]; then
-        provider_key_name="${PROVIDER_API_KEY_NAMES[$AI_PROVIDER]}"
-    fi
-    AI_API_KEY=""
-    if [ -n "$provider_key_name" ]; then
-        AI_API_KEY=$(grep "^${provider_key_name}=" "$source_file" 2>/dev/null | cut -d'=' -f2- | tr -d '"' | tr -d "'" || echo "")
-    fi
-
-    # 读取 AI_MODEL
+    # 读取 AI_MODEL (当前选择的模型)
     AI_MODEL=$(grep "^AI_MODEL=" "$source_file" 2>/dev/null | cut -d'=' -f2 | tr -d '"' | tr -d "'" | tr -d '[:space:]' || echo "")
 
     # 读取 AI_API_BASE_URL
     AI_API_BASE_URL=$(grep "^AI_API_BASE_URL=" "$source_file" 2>/dev/null | cut -d'=' -f2 | tr -d '"' | tr -d "'" | tr -d '[:space:]' || echo "")
 
+    # 读取所有提供商的 API Keys
+    DEEPSEEK_API_KEY=$(grep "^DEEPSEEK_API_KEY=" "$source_file" 2>/dev/null | cut -d'=' -f2- | tr -d '"' | tr -d "'" || echo "")
+    ANTHROPIC_API_KEY=$(grep "^ANTHROPIC_API_KEY=" "$source_file" 2>/dev/null | cut -d'=' -f2- | tr -d '"' | tr -d "'" || echo "")
+    GEMINI_API_KEY=$(grep "^GEMINI_API_KEY=" "$source_file" 2>/dev/null | cut -d'=' -f2- | tr -d '"' | tr -d "'" || echo "")
+    OLLAMA_API_KEY=$(grep "^OLLAMA_API_KEY=" "$source_file" 2>/dev/null | cut -d'=' -f2- | tr -d '"' | tr -d "'" || echo "")
+
     echo -e "${BLUE}读取配置:${NC}"
-    echo "  - AI_PROVIDER: ${AI_PROVIDER:-未设置}"
-    echo "  - AI_MODEL: ${AI_MODEL:-未设置}"
-    echo "  - AI_API_KEY: $([ -n "$AI_API_KEY" ] && echo "已设置" || echo "未设置")"
+    echo "  - 当前默认 AI_PROVIDER: ${AI_PROVIDER:-deepseek}"
+    echo "  - 当前模型 AI_MODEL: ${AI_MODEL:-未设置}"
+    echo "  - DeepSeek API Key: $([ -n "$DEEPSEEK_API_KEY" ] && echo "已设置" || echo "未设置")"
+    echo "  - Anthropic API Key: $([ -n "$ANTHROPIC_API_KEY" ] && echo "已设置" || echo "未设置")"
+    echo "  - Gemini API Key: $([ -n "$GEMINI_API_KEY" ] && echo "已设置" || echo "未设置")"
 
     # 如果两个文件都存在但配置不一致，给出警告
     if [ -f "$env_file" ] && [ -f "$docker_env_file" ]; then
@@ -138,25 +150,142 @@ load_env_config() {
 
 # 生成 auth-profiles.json 文件
 generate_auth_profiles() {
-    local provider="$1"
-    local api_key="$2"
-    local model="$3"
-    local api_base_url="$4"
+    # 此函数不再需要参数，所有配置从全局变量读取
 
-    # 清理提供商名称，防止重复
-    provider=$(clean_provider_name "$provider")
-
-    # 映射到实际的提供商 ID
-    local actual_provider="${PROVIDER_MAP[$provider]:-$provider}"
-    local provider_label="${PROVIDER_LABELS[$provider]:-$provider}"
-
-    # 再次清理，确保没有重复
+    # 清理当前提供商名称
+    local current_provider=$(clean_provider_name "$AI_PROVIDER")
+    local actual_provider="${PROVIDER_MAP[$current_provider]:-$current_provider}"
     actual_provider=$(clean_provider_name "$actual_provider")
 
-    echo -e "${BLUE}生成 auth-profiles.json...${NC}"
-    echo "  - 用户选择: $provider"
-    echo "  - 实际提供商: $actual_provider"
-    echo "  - 模型: $model"
+    echo -e "${BLUE}生成 auth-profiles.json (多提供商模式)...${NC}"
+    echo "  - 当前默认提供商: $actual_provider"
+
+    # 构建 profiles JSON
+    local profiles_json=""
+    local first_profile=true
+
+    # DeepSeek 提供商
+    if [ -n "$DEEPSEEK_API_KEY" ] && [ "$DEEPSEEK_API_KEY" != "your-api-key-here" ]; then
+        local deepseek_url="${PROVIDER_API_BASE_URLS[deepseek]}"
+        local deepseek_model="${PROVIDER_DEFAULT_MODELS[deepseek]}"
+
+        if [ "$first_profile" = true ]; then
+            first_profile=false
+        else
+            profiles_json+=',
+'
+        fi
+
+        profiles_json+="    \"deepseek\": {
+      \"provider\": \"deepseek\",
+      \"label\": \"DeepSeek\",
+      \"apiKey\": \"$DEEPSEEK_API_KEY\",
+      \"model\": \"$deepseek_model\",
+      \"apiBaseUrl\": \"$deepseek_url\",
+      \"enabled\": true,
+      \"default\": $([ "$actual_provider" = "deepseek" ] && echo "true" || echo "false")
+    }"
+        echo "  - DeepSeek: 已添加"
+    fi
+
+    # Anthropic (Claude) 提供商
+    if [ -n "$ANTHROPIC_API_KEY" ] && [ "$ANTHROPIC_API_KEY" != "your-api-key-here" ]; then
+        local anthropic_url="${PROVIDER_API_BASE_URLS[claude]}"
+        local anthropic_model="${PROVIDER_DEFAULT_MODELS[claude]}"
+
+        if [ "$first_profile" = true ]; then
+            first_profile=false
+        else
+            profiles_json+=',
+'
+        fi
+
+        profiles_json+="    \"anthropic\": {
+      \"provider\": \"anthropic\",
+      \"label\": \"Claude (Anthropic)\",
+      \"apiKey\": \"$ANTHROPIC_API_KEY\",
+      \"model\": \"$anthropic_model\",
+      \"apiBaseUrl\": \"$anthropic_url\",
+      \"enabled\": true,
+      \"default\": $([ "$actual_provider" = "anthropic" ] && echo "true" || echo "false")
+    }"
+        echo "  - Anthropic (Claude): 已添加"
+    fi
+
+    # Google Gemini 提供商
+    if [ -n "$GEMINI_API_KEY" ] && [ "$GEMINI_API_KEY" != "your-api-key-here" ]; then
+        local gemini_url="${PROVIDER_API_BASE_URLS[gemini]}"
+        local gemini_model="${PROVIDER_DEFAULT_MODELS[gemini]}"
+
+        if [ "$first_profile" = true ]; then
+            first_profile=false
+        else
+            profiles_json+=',
+'
+        fi
+
+        profiles_json+="    \"google\": {
+      \"provider\": \"google\",
+      \"label\": \"Gemini (Google)\",
+      \"apiKey\": \"$GEMINI_API_KEY\",
+      \"model\": \"$gemini_model\",
+      \"apiBaseUrl\": \"$gemini_url\",
+      \"enabled\": true,
+      \"default\": $([ "$actual_provider" = "google" ] || [ "$actual_provider" = "gemini" ] && echo "true" || echo "false")
+    }"
+        echo "  - Gemini (Google): 已添加"
+    fi
+
+    # Ollama 提供商 (本地模型)
+    if [ -n "$OLLAMA_API_KEY" ] || [ "$current_provider" = "ollama" ]; then
+        local ollama_url="${PROVIDER_API_BASE_URLS[ollama]}"
+        local ollama_model="${PROVIDER_DEFAULT_MODELS[ollama]}"
+
+        if [ "$first_profile" = true ]; then
+            first_profile=false
+        else
+            profiles_json+=',
+'
+        fi
+
+        # Ollama 可能没有 API Key
+        local ollama_key="${OLLAMA_API_KEY:-empty}"
+        profiles_json+="    \"ollama\": {
+      \"provider\": \"ollama\",
+      \"label\": \"Ollama (Local)\",
+      \"apiKey\": \"$ollama_key\",
+      \"model\": \"$ollama_model\",
+      \"apiBaseUrl\": \"$ollama_url\",
+      \"enabled\": true,
+      \"default\": $([ "$actual_provider" = "ollama" ] && echo "true" || echo "false")
+    }"
+        echo "  - Ollama (本地): 已添加"
+    fi
+
+    # 如果没有配置任何提供商，至少添加当前选择的
+    if [ "$first_profile" = true ]; then
+        echo -e "${YELLOW}警告: 未检测到有效的 API Key，使用当前配置作为占位符${NC}"
+
+        # 使用当前选择的提供商信息
+        local current_url="$AI_API_BASE_URL"
+        if [ -z "$current_url" ]; then
+            current_url="${PROVIDER_API_BASE_URLS[$current_provider]:-https://api.example.com}"
+        fi
+        local current_model="$AI_MODEL"
+        if [ -z "$current_model" ]; then
+            current_model="${PROVIDER_DEFAULT_MODELS[$current_provider]:-default-model}"
+        fi
+
+        profiles_json+="    \"$actual_provider\": {
+      \"provider\": \"$actual_provider\",
+      \"label\": \"${PROVIDER_LABELS[$current_provider]:-$actual_provider}\",
+      \"apiKey\": \"\",
+      \"model\": \"$current_model\",
+      \"apiBaseUrl\": \"$current_url\",
+      \"enabled\": true,
+      \"default\": true
+    }"
+    fi
 
     # 创建 JSON 文件
     cat > "$AUTH_FILE" << EOF
@@ -164,15 +293,7 @@ generate_auth_profiles() {
   "version": "1.0",
   "defaultProvider": "$actual_provider",
   "profiles": {
-    "$actual_provider": {
-      "provider": "$actual_provider",
-      "label": "$provider_label",
-      "apiKey": "$api_key",
-      "model": "$model",
-      "apiBaseUrl": "$api_base_url",
-      "enabled": true,
-      "default": true
-    }
+${profiles_json}
   }
 }
 EOF
@@ -181,6 +302,7 @@ EOF
     chmod 600 "$AUTH_FILE"
 
     echo -e "${GREEN}✓ 认证文件已生成: $AUTH_FILE${NC}"
+    echo "  支持运行时切换模型"
 }
 
 # 生成嵌入式代理配置文件
@@ -248,8 +370,8 @@ main() {
         echo -e "${YELLOW}警告: ${provider_key_name} 未设置 (ollama 除外)${NC}"
     fi
 
-    # 4. 生成认证文件
-    generate_auth_profiles "$AI_PROVIDER" "$AI_API_KEY" "$AI_MODEL" "$AI_API_BASE_URL"
+    # 4. 生成认证文件 (多提供商支持)
+    generate_auth_profiles
 
     # 5. 生成代理配置
     generate_agent_config "$AI_PROVIDER" "$AI_MODEL"

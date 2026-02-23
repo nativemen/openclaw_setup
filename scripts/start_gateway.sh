@@ -70,13 +70,13 @@ fi
 # AI 提供商配置映射
 declare -A PROVIDER_API_BASE_URLS
 PROVIDER_API_BASE_URLS[deepseek]="https://api.deepseek.com"
-PROVIDER_API_BASE_URLS[gemini]="https://generativelanguage.googleapis.com"
+PROVIDER_API_BASE_URLS[gemini]="https://generativelanguage.googleapis.com/v1beta/openai"
 PROVIDER_API_BASE_URLS[claude]="https://api.anthropic.com"
 PROVIDER_API_BASE_URLS[ollama]="http://localhost:11434"
 
 declare -A PROVIDER_DEFAULT_MODELS
 PROVIDER_DEFAULT_MODELS[deepseek]="deepseek-chat"
-PROVIDER_DEFAULT_MODELS[gemini]="gemini-2.0-flash"
+PROVIDER_DEFAULT_MODELS[gemini]="gemini-flash-latest"
 PROVIDER_DEFAULT_MODELS[claude]="claude-sonnet-4-20250514"
 PROVIDER_DEFAULT_MODELS[ollama]="llama3.1:8b"
 
@@ -95,6 +95,9 @@ PROVIDER_DISPLAY_NAMES[deepseek]="DeepSeek"
 PROVIDER_DISPLAY_NAMES[gemini]="Gemini"
 PROVIDER_DISPLAY_NAMES[claude]="Claude"
 PROVIDER_DISPLAY_NAMES[ollama]="Ollama"
+
+# 默认构建方式（增量构建）
+FORCE_REBUILD=false
 
 # 检测是否首次运行（无 .env 文件）
 is_first_run() {
@@ -638,6 +641,66 @@ select_deploy_mode() {
     echo ""
 }
 
+# 询问是否强制重新构建（用于更新 OpenClaw 版本）
+ask_force_rebuild() {
+    echo -e "${BLUE}============================================${NC}"
+    echo -e "${BLUE}  构建选项${NC}"
+    echo -e "${BLUE}============================================${NC}"
+    echo ""
+    echo "请选择构建方式:"
+    echo ""
+    echo "  1) 增量构建 (快速，使用缓存)"
+    echo "  2) 强制重新构建 (清除缓存，确保使用最新 OpenClaw 版本)"
+    echo ""
+    echo -e "${YELLOW}提示: 如果界面显示 'Update available' 但点击无响应，${NC}"
+    echo -e "${YELLOW}      请选择 '强制重新构建' 以更新到最新版本${NC}"
+    echo ""
+
+    read -p "请输入选项 (1-2) [默认: 1-增量构建]: " rebuild_choice
+    rebuild_choice=${rebuild_choice:-1}
+
+    case "$rebuild_choice" in
+        1)
+            FORCE_REBUILD=false
+            echo -e "已选择: ${GREEN}增量构建${NC}"
+            ;;
+        2)
+            FORCE_REBUILD=true
+            echo -e "已选择: ${GREEN}强制重新构建 (将更新 OpenClaw 到最新版本)${NC}"
+            ;;
+        *)
+            FORCE_REBUILD=false
+            echo -e "无效选择，使用默认: ${GREEN}增量构建${NC}"
+            ;;
+    esac
+    echo ""
+}
+
+# 强制重新构建: 删除旧镜像
+remove_old_images() {
+    echo -e "${YELLOW}删除旧镜像...${NC}"
+
+    # 获取镜像名称
+    local image_name="openclaw-gateway"
+
+    # 查找并删除相关镜像
+    local images=$(docker images | grep "$image_name" | awk '{print $3}' | sort -u)
+
+    if [ -n "$images" ]; then
+        for image_id in $images; do
+            echo "  删除镜像: $image_id"
+            docker rmi -f "$image_id" 2>/dev/null || true
+        done
+        echo -e "${GREEN}✓ 旧镜像已删除${NC}"
+    else
+        echo "  未找到旧镜像"
+    fi
+
+    # 同时删除 openclaw 的 npm 全局包镜像缓存（如果存在）
+    echo -e "${GREEN}✓ 清理完成${NC}"
+    echo ""
+}
+
 # 启动 Docker
 start_docker() {
     cd "$DOCKER_DIR"
@@ -668,12 +731,27 @@ start_docker() {
     fi
     echo ""
 
+    # 如果选择了强制重新构建，先删除旧镜像
+    if [ "$FORCE_REBUILD" = true ]; then
+        remove_old_images
+    fi
+
     echo "启动 Docker 容器..."
     # 使用选定的 compose 配置和 env 文件
     if docker compose version &> /dev/null 2>&1; then
-        $DOCKER_COMPOSE --env-file "$ENV_FILE" $COMPOSE_ARGS up -d --pull always
+        if [ "$FORCE_REBUILD" = true ]; then
+            echo -e "${YELLOW}强制重新构建镜像（不使用缓存）...${NC}"
+            $DOCKER_COMPOSE --env-file "$ENV_FILE" $COMPOSE_ARGS build --no-cache
+            $DOCKER_COMPOSE --env-file "$ENV_FILE" $COMPOSE_ARGS up -d --pull always
+        else
+            $DOCKER_COMPOSE --env-file "$ENV_FILE" $COMPOSE_ARGS up -d --pull always
+        fi
     else
-        $DOCKER_COMPOSE --env-file "$ENV_FILE" $COMPOSE_ARGS build
+        if [ "$FORCE_REBUILD" = true ]; then
+            $DOCKER_COMPOSE --env-file "$ENV_FILE" $COMPOSE_ARGS build --no-cache
+        else
+            $DOCKER_COMPOSE --env-file "$ENV_FILE" $COMPOSE_ARGS build
+        fi
         $DOCKER_COMPOSE --env-file "$ENV_FILE" $COMPOSE_ARGS up -d
     fi
 
@@ -790,7 +868,10 @@ main() {
     # 7. 选择部署模式
     select_deploy_mode
 
-    # 8. 启动 Docker
+    # 8. 选择构建方式（更新 OpenClaw 版本）
+    ask_force_rebuild
+
+    # 9. 启动 Docker
     start_docker
 }
 

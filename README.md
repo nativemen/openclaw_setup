@@ -79,10 +79,10 @@ openclaw_setup/
 | DeepSeek | deepseek-chat | 免费无限额，推荐 | API Key |
 | DeepSeek | deepseek-coder | 编程任务 | API Key |
 | DeepSeek | deepseek-reasoner (R1) | 推理任务 | API Key |
-| Google Gemini | gemini-2.0-flash | 快速响应 | API Key |
-| Google Gemini | gemini-2.0-pro | 高质量任务 | API Key |
-| Anthropic Claude | claude-opus-4-5 | 最高质量 | API Key |
-| Anthropic Claude | claude-sonnet-4-5 | 平衡性能 | API Key |
+| Google Gemini | gemini-flash-latest | 快速响应 | API Key |
+| Google Gemini | gemini-pro-latest | 高质量任务 | API Key |
+| Anthropic Claude | claude-sonnet-4-20250514 | 平衡性能 | API Key |
+| Anthropic Claude | claude-opus-4-20250514 | 最高质量 | API Key |
 | Ollama | llama3.1:8b | 本地离线模型 | 本地运行 |
 | Ollama | llama3.1:70b | 高质量本地模型 | 本地运行 |
 

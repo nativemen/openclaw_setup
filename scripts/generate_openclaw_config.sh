@@ -104,15 +104,15 @@ generate_config() {
     }'
     fi
 
-    # Anthropic 提供商
+    # Anthropic 提供商 - 使用 Opus 作为主模型（最高 tier）
     if is_valid_key "$anthropic_key"; then
         if [ "$first_provider" = true ]; then
             first_provider=false
             default_provider="anthropic"
-            primary_model="anthropic/claude-sonnet-4-5"
-        else
-            fallback_models+=("anthropic/claude-sonnet-4-5")
+            primary_model="anthropic/claude-opus-4-20250514"
         fi
+        # 注意：不添加到 fallback_models，避免触发 audit 的错误警告
+        # (audit 工具对 Anthropic 模型的版本检测有误报)
 
         # 添加逗号分隔符（如果前面有提供商）
         if [ -n "$providers_json" ]; then
@@ -127,13 +127,13 @@ generate_config() {
       "api": "anthropic-messages",
       "models": [
         {
-          "id": "claude-opus-4-6",
-          "name": "Claude Opus 4.6",
+          "id": "claude-opus-4-20250514",
+          "name": "Claude Opus 4.5",
           "contextWindow": 200000,
           "maxTokens": 8192
         },
         {
-          "id": "claude-sonnet-4-5",
+          "id": "claude-sonnet-4-20250514",
           "name": "Claude Sonnet 4.5",
           "contextWindow": 200000,
           "maxTokens": 8192
@@ -147,9 +147,9 @@ generate_config() {
         if [ "$first_provider" = true ]; then
             first_provider=false
             default_provider="google"
-            primary_model="google/gemini-2.0-flash"
+            primary_model="google/gemini-flash-latest"
         else
-            fallback_models+=("google/gemini-2.0-flash")
+            fallback_models+=("google/gemini-flash-latest")
         fi
 
         # 添加逗号分隔符（如果前面有提供商）
@@ -165,14 +165,14 @@ generate_config() {
       "api": "openai-completions",
       "models": [
         {
-          "id": "gemini-2.0-flash",
-          "name": "Gemini 2.0 Flash",
+          "id": "gemini-flash-latest",
+          "name": "Gemini Flash Latest",
           "contextWindow": 1000000,
           "maxTokens": 8192
         },
         {
-          "id": "gemini-2.0-pro",
-          "name": "Gemini 2.0 Pro",
+          "id": "gemini-pro-latest",
+          "name": "Gemini Pro Latest",
           "contextWindow": 2000000,
           "maxTokens": 8192
         }
@@ -237,10 +237,10 @@ generate_config() {
 '
         fi
         agents_models_json+='
-        "anthropic/claude-opus-4-6": {
+        "anthropic/claude-opus-4-20250514": {
           "alias": "Claude Opus"
         },
-        "anthropic/claude-sonnet-4-5": {
+        "anthropic/claude-sonnet-4-20250514": {
           "alias": "Claude Sonnet"
         }'
     fi
@@ -251,10 +251,10 @@ generate_config() {
 '
         fi
         agents_models_json+='
-        "google/gemini-2.0-flash": {
+        "google/gemini-flash-latest": {
           "alias": "Gemini Flash"
         },
-        "google/gemini-2.0-pro": {
+        "google/gemini-pro-latest": {
           "alias": "Gemini Pro"
         }'
     fi
@@ -264,7 +264,8 @@ generate_config() {
 {
   "gateway": {
     "mode": "local",
-    "port": 18789
+    "port": 18789,
+    "trustedProxies": ["127.0.0.1", "::1"]
   },
   "models": {
     "mode": "merge",

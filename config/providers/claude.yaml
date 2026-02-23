@@ -1,56 +1,57 @@
 # ==============================================================================
-# Claude (Anthropic) Provider Configuration
+# Anthropic Claude Provider Configuration
 # ==============================================================================
-# OpenClaw 模型配置文件
-# 文档: https://docs.openclaw.ai/providers/anthropic
+# OpenClaw Custom Provider Configuration
+# 文档: https://docs.openclaw.ai/gateway/configuration-reference#custom-providers
 # ==============================================================================
 
-# 模型提供商类型
-provider: anthropic
-
-# 显示名称
-label: "Claude (Anthropic)"
-
-# API 密钥来源 (从环境变量或密钥文件读取)
-apiKey: ${ANTHROPIC_API_KEY}
-
-# API 端点 (通常不需要修改)
-apiBaseUrl: https://api.anthropic.com
-
-# 使用的模型
-model: claude-sonnet-4-20250514
-
-# 可用模型列表 (用于回退)
+# 模型提供商配置 (OpenClaw 自定义提供商格式)
 models:
-  - claude-opus-4-5-20251114    # 最高质量
-  - claude-sonnet-4-20250514    # 推荐 (平衡)
-  - claude-3-5-sonnet-20241022  # 稳定
+  mode: "merge"
+  providers:
+    anthropic:
+      # API 端点 (Anthropic 兼容格式)
+      baseUrl: "https://api.anthropic.com/v1"
+      # API 密钥 (从环境变量读取)
+      apiKey: "${ANTHROPIC_API_KEY}"
+      # API 类型: openai-completions | openai-responses | anthropic-messages
+      api: "anthropic-messages"
+      # 可用模型列表
+      models:
+        - id: "claude-opus-4-20250514"
+          name: "Claude Opus 4.5"
+          contextWindow: 200000
+          maxTokens: 8192
+          reasoning: true
+          input: ["text"]
+          cost:
+            input: 15.0
+            output: 75.0
+            cacheRead: 1.5
+            cacheWrite: 7.5
+        - id: "claude-sonnet-4-20250514"
+          name: "Claude Sonnet 4.5"
+          contextWindow: 200000
+          maxTokens: 8192
+          reasoning: false
+          input: ["text"]
+          cost:
+            input: 3.0
+            output: 15.0
+            cacheRead: 0.3
+            cacheWrite: 1.5
 
-# 最大 token 数量
-maxTokens: 8192
-
-# 请求超时 (毫秒)
-timeout: 120000
-
-# 最大重试次数
-maxRetries: 3
-
-# 温度参数
-temperature: 0.7
-
-# 系统提示词
-systemPrompt: |
-  You are Claude, an AI assistant built by Anthropic.
-  You are helpful, harmless, and honest.
-
-# 是否启用
-enabled: true
-
-# 是否为默认模型
-default: true
-
-# 代理设置 (可选)
-# proxy: ${ANTHROPIC_PROXY}
-
-# 密钥文件路径 (可选，用于加密存储)
-# keyFile: ~/.openclaw/secrets/anthropic.key
+# 代理默认配置
+agents:
+  defaults:
+    # 主模型
+    model:
+      primary: "anthropic/claude-sonnet-4-20250514"
+      fallbacks:
+        - "anthropic/claude-opus-4-20250514"
+    # 模型别名和元数据
+    models:
+      "anthropic/claude-opus-4-20250514":
+        alias: "Claude Opus"
+      "anthropic/claude-sonnet-4-20250514":
+        alias: "Claude Sonnet"
